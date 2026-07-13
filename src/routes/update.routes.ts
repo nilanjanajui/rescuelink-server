@@ -1,10 +1,8 @@
 import { Router } from 'express';
+import { getUpdatesByMission } from '../controllers/update.controller';
 
 const router = Router();
 
-// TODO (Phase 4): wire real controllers + verifyJWT middleware here
-router.get('/', (req, res) => {
-  res.status(501).json({ message: 'Update routes not implemented yet' });
-});
+router.get('/', getUpdatesByMission);
 
 export default router;

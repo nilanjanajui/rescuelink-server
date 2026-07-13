@@ -449,6 +449,13 @@ async function seed() {
   );
 
   // A couple of progress updates for a handful of active, higher-profile missions.
+  const posterNames: Record<string, string> = {
+    [userIds.redCrescent]: 'Bangladesh Red Crescent',
+    [userIds.fireService]: 'Bangladesh Fire Service',
+    [userIds.oceanCleanup]: 'Ocean Cleanup BD',
+    [userIds.demoAdmin]: 'Demo Admin',
+  };
+
   const updateTargets = missions
     .filter((m) => m.status === 'active')
     .slice(0, 6);
@@ -456,33 +463,24 @@ async function seed() {
     {
       missionId: String(mission._id),
       userId: mission.postedBy,
+      authorName: posterNames[mission.postedBy] ?? 'Mission Coordinator',
       message: 'Initial response team deployed and assessment underway.',
     },
     {
       missionId: String(mission._id),
       userId: mission.postedBy,
+      authorName: posterNames[mission.postedBy] ?? 'Mission Coordinator',
       message: `Volunteer count now at ${mission.volunteersJoined}/${mission.volunteersNeeded}. More hands still needed.`,
     },
   ]);
   await Update.insertMany(updateDocs);
   console.log(`Seeded ${updateDocs.length} mission updates`);
 
-  await Testimonial.insertMany(TESTIMONIAL_SEEDS);
-  console.log(`Seeded ${TESTIMONIAL_SEEDS.length} testimonials`);
-
-  await Subscriber.insertMany([
-    { email: 'alerts.subscriber1@example.com' },
-    { email: 'alerts.subscriber2@example.com' },
-  ]);
-  console.log('Seeded 2 newsletter subscribers');
-
-  console.log('\nApp data seeding complete.');
+  seed()
+    .then(() => mongoose.disconnect())
+    .then(() => process.exit(0))
+    .catch((err) => {
+      console.error('Seed failed:', err);
+      process.exit(1);
+    });
 }
-
-seed()
-  .then(() => mongoose.disconnect())
-  .then(() => process.exit(0))
-  .catch((err) => {
-    console.error('Seed failed:', err);
-    process.exit(1);
-  });
