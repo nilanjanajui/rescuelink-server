@@ -475,12 +475,13 @@ async function seed() {
   ]);
   await Update.insertMany(updateDocs);
   console.log(`Seeded ${updateDocs.length} mission updates`);
-
-  seed()
-    .then(() => mongoose.disconnect())
-    .then(() => process.exit(0))
-    .catch((err) => {
-      console.error('Seed failed:', err);
-      process.exit(1);
-    });
+  console.log('App data seeding complete.');
 }
+
+seed()
+  .then(() => mongoose.disconnect())
+  .then(() => process.exit(0))
+  .catch((err) => {
+    console.error('Seed failed:', err);
+    process.exit(1);
+  });
