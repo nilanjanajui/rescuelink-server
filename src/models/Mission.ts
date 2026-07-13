@@ -1,44 +1,22 @@
-import { Schema, model, Document, Types } from 'mongoose';
+import { Router } from 'express';
+import { verifyJWT } from '../middleware/verifyJWT';
+import { requireRole } from '../middleware/requireRole';
 
-export interface IMission extends Document {
-  title: string;
-  shortDescription: string;
-  fullDescription: string;
-  disasterType: 'flood' | 'earthquake' | 'fire' | 'cyclone' | 'other';
-  urgency: 'critical' | 'moderate' | 'low';
-  status: 'active' | 'resolved';
-  location: string;
-  volunteersNeeded: number;
-  volunteersJoined: number;
-  imageUrl: string;
-  images: string[];
-  postedBy: string; // Better Auth user ID (string, not a Mongoose ref — different DB/collection ownership)
-}
+const router = Router();
 
-const missionSchema = new Schema<IMission>(
-  {
-    title: { type: String, required: true },
-    shortDescription: { type: String, required: true },
-    fullDescription: { type: String, required: true },
-    disasterType: {
-      type: String,
-      enum: ['flood', 'earthquake', 'fire', 'cyclone', 'other'],
-      required: true,
-    },
-    urgency: {
-      type: String,
-      enum: ['critical', 'moderate', 'low'],
-      required: true,
-    },
-    status: { type: String, enum: ['active', 'resolved'], default: 'active' },
-    location: { type: String, required: true },
-    volunteersNeeded: { type: Number, required: true },
-    volunteersJoined: { type: Number, default: 0 },
-    imageUrl: { type: String, default: '' },
-    images: [{ type: String }],
-    postedBy: { type: String, required: true },
-  },
-  { timestamps: true },
-);
+// TODO (Phase 4): replace with the real mission controller
+router.get('/', (req, res) => {
+  res.status(501).json({ message: 'Mission routes not implemented yet' });
+});
 
-export default model<IMission>('Mission', missionSchema);
+// Phase 2 smoke test: proves the JWT chain end-to-end (401 with no/invalid
+// token, 403 for a Tenant, 200 for user/admin). Real create-mission logic
+// replaces this body in Phase 4 — the middleware stays as-is.
+router.post('/', verifyJWT, requireRole('user', 'admin'), (req, res) => {
+  res.status(200).json({
+    message: 'Token verified and role authorized — mission creation lands in Phase 4',
+    user: req.user,
+  });
+});
+
+export default router;
