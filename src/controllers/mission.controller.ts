@@ -104,6 +104,41 @@ export const getMyMissions = async (req: Request, res: Response) => {
   }
 };
 
+// GET /api/missions/admin/all — admin-only. Lists every mission on the
+// platform (not just the admin's own), with poster names resolved from
+// Better Auth's `user` collection since Mission.postedBy is just a raw ID.
+// This is what actually lets an admin *use* the delete/update override
+// permission they already have — without this, that permission had no UI.
+export const getAllMissionsForAdmin = async (req: Request, res: Response) => {
+  try {
+    const missions = await Mission.find().sort({ createdAt: -1 });
+
+    const { db } = mongoose.connection;
+    const posterIds = [...new Set(missions.map((m) => m.postedBy))];
+    let posterNames = new Map<string, string>();
+
+    if (db && posterIds.length > 0) {
+      const users = await db
+        .collection('user')
+        .find({ _id: { $in: posterIds.map((id) => new mongoose.Types.ObjectId(id)) } })
+        .project({ name: 1 })
+        .toArray()
+        .catch(() => []); // postedBy IDs that aren't valid ObjectIds just fall back to "Unknown"
+
+      posterNames = new Map(users.map((u) => [String(u._id), u.name as string]));
+    }
+
+    const enriched = missions.map((m) => ({
+      ...m.toObject(),
+      posterName: posterNames.get(m.postedBy) ?? 'Unknown',
+    }));
+
+    res.json({ missions: enriched });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch all missions' });
+  }
+};
+
 // GET /api/missions/:id — public mission details
 export const getMissionById = async (req: Request, res: Response) => {
   try {

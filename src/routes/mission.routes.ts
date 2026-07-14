@@ -4,6 +4,7 @@ import { requireRole } from '../middleware/requireRole';
 import {
   getMissions,
   getMyMissions,
+  getAllMissionsForAdmin,
   getMissionById,
   createMission,
   updateMissionStatus,
@@ -14,8 +15,9 @@ const router = Router();
 
 router.get('/', getMissions);
 
-// Must come before '/:id' — otherwise Express matches "mine" as an :id param.
+// Both must come before '/:id' — otherwise Express matches these as an :id param.
 router.get('/mine', verifyJWT, requireRole('user', 'admin'), getMyMissions);
+router.get('/admin/all', verifyJWT, requireRole('admin'), getAllMissionsForAdmin);
 
 router.get('/:id', getMissionById);
 
