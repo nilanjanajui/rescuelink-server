@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import mongoose from 'mongoose';
 import Mission from '../models/Mission';
+import VolunteerSignup from '../models/VolunteerSignup';
+import Update from '../models/Update';
 
 // GET /api/missions — public listing.
 // Supports two modes:
@@ -27,11 +29,7 @@ export const getMissions = async (req: Request, res: Response) => {
     if (urgency) match.urgency = urgency;
     if (search) {
       const regex = new RegExp(search, 'i');
-      match.$or = [
-        { title: regex },
-        { location: regex },
-        { shortDescription: regex },
-      ];
+      match.$or = [{ title: regex }, { location: regex }, { shortDescription: regex }];
     }
 
     const pipeline: mongoose.PipelineStage[] = [
@@ -48,9 +46,7 @@ export const getMissions = async (req: Request, res: Response) => {
               default: 3,
             },
           },
-          remainingNeed: {
-            $subtract: ['$volunteersNeeded', '$volunteersJoined'],
-          },
+          remainingNeed: { $subtract: ['$volunteersNeeded', '$volunteersJoined'] },
         },
       },
     ];
@@ -65,10 +61,7 @@ export const getMissions = async (req: Request, res: Response) => {
 
     // Simple "featured" mode — flat array, no pagination.
     if (limit && !page) {
-      const missions = await Mission.aggregate([
-        ...pipeline,
-        { $limit: Number(limit) },
-      ]);
+      const missions = await Mission.aggregate([...pipeline, { $limit: Number(limit) }]);
       return res.json({ missions });
     }
 
@@ -101,6 +94,16 @@ export const getMissions = async (req: Request, res: Response) => {
   }
 };
 
+// GET /api/missions/mine — missions posted by the logged-in user (Manage page)
+export const getMyMissions = async (req: Request, res: Response) => {
+  try {
+    const missions = await Mission.find({ postedBy: req.user!.id }).sort({ createdAt: -1 });
+    res.json({ missions });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch your missions' });
+  }
+};
+
 // GET /api/missions/:id — public mission details
 export const getMissionById = async (req: Request, res: Response) => {
   try {
@@ -111,5 +114,118 @@ export const getMissionById = async (req: Request, res: Response) => {
     res.json({ mission });
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch mission' });
+  }
+};
+
+const REQUIRED_FIELDS = [
+  'title',
+  'shortDescription',
+  'fullDescription',
+  'disasterType',
+  'urgency',
+  'location',
+  'volunteersNeeded',
+] as const;
+
+const DISASTER_TYPES = ['flood', 'earthquake', 'fire', 'cyclone', 'other'];
+const URGENCY_LEVELS = ['critical', 'moderate', 'low'];
+
+// POST /api/missions — create a mission. Protected: user/admin only.
+export const createMission = async (req: Request, res: Response) => {
+  try {
+    const body = req.body as Record<string, unknown>;
+
+    for (const field of REQUIRED_FIELDS) {
+      if (body[field] === undefined || body[field] === '') {
+        return res.status(400).json({ message: `${field} is required` });
+      }
+    }
+    if (!DISASTER_TYPES.includes(body.disasterType as string)) {
+      return res.status(400).json({ message: 'Invalid disasterType' });
+    }
+    if (!URGENCY_LEVELS.includes(body.urgency as string)) {
+      return res.status(400).json({ message: 'Invalid urgency' });
+    }
+    const volunteersNeeded = Number(body.volunteersNeeded);
+    if (!Number.isFinite(volunteersNeeded) || volunteersNeeded < 1) {
+      return res.status(400).json({ message: 'volunteersNeeded must be a positive number' });
+    }
+
+    const imageUrl =
+      typeof body.imageUrl === 'string' && body.imageUrl.trim()
+        ? body.imageUrl.trim()
+        : `https://picsum.photos/seed/mission-${Date.now()}/900/600`;
+
+    const mission = await Mission.create({
+      title: body.title as string,
+      shortDescription: body.shortDescription as string,
+      fullDescription: body.fullDescription as string,
+      disasterType: body.disasterType as 'flood' | 'earthquake' | 'fire' | 'cyclone' | 'other',
+      urgency: body.urgency as 'critical' | 'moderate' | 'low',
+      location: body.location as string,
+      volunteersNeeded,
+      volunteersJoined: 0,
+      status: 'active',
+      imageUrl,
+      images: [imageUrl],
+      postedBy: req.user!.id,
+    });
+
+    res.status(201).json({ mission });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to create mission' });
+  }
+};
+
+async function assertOwnerOrAdmin(req: Request, res: Response, missionId: string) {
+  const mission = await Mission.findById(missionId);
+  if (!mission) {
+    res.status(404).json({ message: 'Mission not found' });
+    return null;
+  }
+  if (mission.postedBy !== req.user!.id && req.user!.role !== 'admin') {
+    res.status(403).json({ message: 'You can only manage missions you posted' });
+    return null;
+  }
+  return mission;
+}
+
+// PATCH /api/missions/:id/status — toggle Active <-> Resolved. Protected,
+// owner or admin only.
+export const updateMissionStatus = async (req: Request, res: Response) => {
+  try {
+    const mission = await assertOwnerOrAdmin(req, res, String(req.params.id));
+    if (!mission) return;
+
+    const { status } = req.body as { status?: string };
+    if (status !== 'active' && status !== 'resolved') {
+      return res.status(400).json({ message: 'status must be "active" or "resolved"' });
+    }
+
+    mission.status = status;
+    await mission.save();
+    res.json({ mission });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to update mission status' });
+  }
+};
+
+// DELETE /api/missions/:id — protected, owner or admin only. Cascades to
+// that mission's volunteer signups and updates so nothing is left orphaned.
+export const deleteMission = async (req: Request, res: Response) => {
+  try {
+    const mission = await assertOwnerOrAdmin(req, res, String(req.params.id));
+    if (!mission) return;
+
+    const missionId = String(mission._id);
+    await Promise.all([
+      Mission.deleteOne({ _id: missionId }),
+      VolunteerSignup.deleteMany({ missionId }),
+      Update.deleteMany({ missionId }),
+    ]);
+
+    res.json({ message: 'Mission deleted' });
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to delete mission' });
   }
 };
