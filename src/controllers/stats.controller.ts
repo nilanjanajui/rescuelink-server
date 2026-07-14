@@ -40,3 +40,19 @@ export const getVolunteerGrowth = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Failed to fetch volunteer growth' });
   }
 };
+
+
+type ByDisasterTypeAgg = { _id: string; count: number };
+
+// GET /api/stats/by-disaster-type — used on the Impact Reports page
+export const getMissionsByDisasterType = async (req: Request, res: Response) => {
+  try {
+    const data = await Mission.aggregate<ByDisasterTypeAgg>([
+      { $group: { _id: '$disasterType', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+    ]);
+    res.json(data.map((d) => ({ disasterType: d._id, count: d.count })));
+  } catch (err) {
+    res.status(500).json({ message: 'Failed to fetch mission breakdown' });
+  }
+};
