@@ -6,6 +6,8 @@ import missionRoutes from './routes/mission.routes';
 import volunteerRoutes from './routes/volunteer.routes';
 import updateRoutes from './routes/update.routes';
 import statsRoutes from './routes/stats.routes';
+import subscriberRoutes from './routes/subscriber.routes';
+import contactRoutes from './routes/contact.routes';
 
 dotenv.config();
 
@@ -18,6 +20,8 @@ app.use('/api/missions', missionRoutes);
 app.use('/api/volunteer-signups', volunteerRoutes);
 app.use('/api/updates', updateRoutes);
 app.use('/api/stats', statsRoutes);
+app.use('/api/newsletter', subscriberRoutes);
+app.use('/api/contact', contactRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'RescueLink API is running' });
