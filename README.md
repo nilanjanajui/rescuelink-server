@@ -128,4 +128,4 @@ npx tsc --noEmit
 
 ## 📄 License
 
-Built for educational/demo purposes as part of a full-stack TypeScript assignment.
+Built for educational/demo purposes as part of a full-stack TypeScript Project.
