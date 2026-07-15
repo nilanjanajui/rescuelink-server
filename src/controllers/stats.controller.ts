@@ -2,16 +2,19 @@ import { Request, Response } from 'express';
 import Mission from '../models/Mission';
 import VolunteerSignup from '../models/VolunteerSignup';
 
+export async function getPlatformStatsData() {
+  const totalMissions = await Mission.countDocuments({ status: 'active' });
+  const totalVolunteers = await VolunteerSignup.countDocuments();
+  const resolvedCount = await Mission.countDocuments({ status: 'resolved' });
+  const totalCount = await Mission.countDocuments();
+  const successRate = totalCount ? Math.round((resolvedCount / totalCount) * 100) : 0;
+  return { totalMissions, totalVolunteers, successRate };
+}
+
 export const getStats = async (req: Request, res: Response) => {
   try {
-    const totalMissions = await Mission.countDocuments({ status: 'active' });
-    const totalVolunteers = await VolunteerSignup.countDocuments();
-    const resolvedCount = await Mission.countDocuments({ status: 'resolved' });
-    const totalCount = await Mission.countDocuments();
-    const successRate = totalCount
-      ? Math.round((resolvedCount / totalCount) * 100)
-      : 0;
-    res.json({ totalMissions, totalVolunteers, successRate });
+    const stats = await getPlatformStatsData();
+    res.json(stats);
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch stats' });
   }
@@ -40,7 +43,6 @@ export const getVolunteerGrowth = async (req: Request, res: Response) => {
     res.status(500).json({ message: 'Failed to fetch volunteer growth' });
   }
 };
-
 
 type ByDisasterTypeAgg = { _id: string; count: number };
 
