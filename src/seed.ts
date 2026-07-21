@@ -58,118 +58,78 @@ async function seed() {
   ]);
   console.log('✓ Cleared old missions, testimonials, signups, and updates');
 
-  // Seed Missions with coordinates, estimated hours, and verified posters
-  const missionsData = [
-    {
-      title: 'Sylhet Flash Flood Emergency Relief',
-      shortDescription: 'Emergency food distribution, dry ration packs, and rescue boat deployment in Sunamganj & Sylhet.',
-      fullDescription: 'Severe monsoon rains have caused unprecedented flash flooding across Northeastern Bangladesh. Over 500 families in rural Sunamganj are stranded without clean water, shelter, or food. Volunteers will assist in packing food supplies, deploying rescue boats, and operating emergency drinking water purification stations.',
-      disasterType: 'flood',
-      urgency: 'critical',
-      status: 'active',
-      location: 'Sylhet, Sunamganj',
-      coordinates: { lat: 24.8949, lng: 91.8687 },
-      volunteersNeeded: 45,
-      volunteersJoined: 32,
-      estimatedHours: 6,
-      imageUrl: 'https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=1200&q=80',
-      images: [
-        'https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=1200&q=80',
-        'https://images.unsplash.com/photo-1518391846015-55a9cc003b25?auto=format&fit=crop&w=1200&q=80',
-      ],
-      postedBy: redCrescentId,
-    },
-    {
-      title: 'Chittagong Landslide Evacuation & Search Support',
-      shortDescription: 'Supporting fire service crews with search, debris clearing, and emergency medical triage in hilly zones.',
-      fullDescription: 'Torrential rains triggered hillside mudslides near Chittagong. Emergency personnel require trained volunteers for perimeter security, temporary shelter management, distribution of emergency blankets, and medical triage assistance at community centers.',
-      disasterType: 'earthquake',
-      urgency: 'critical',
-      status: 'active',
-      location: 'Chittagong, Hill Tracts',
-      coordinates: { lat: 22.3569, lng: 91.7832 },
-      volunteersNeeded: 30,
-      volunteersJoined: 18,
-      estimatedHours: 8,
-      imageUrl: 'https://images.unsplash.com/photo-1590059207019-1ea19e794216?auto=format&fit=crop&w=1200&q=80',
-      images: [
-        'https://images.unsplash.com/photo-1590059207019-1ea19e794216?auto=format&fit=crop&w=1200&q=80',
-      ],
-      postedBy: fireServiceId,
-    },
-    {
-      title: 'Feni Coastal Cyclone Shelter Readiness & Supplies',
-      shortDescription: 'Pre-positioning hygiene kits, high-calorie food bars, and solar lanterns ahead of Tropical Cyclone Remal.',
-      fullDescription: 'With Tropical Cyclone Remal approaching coastal districts, volunteers are needed to reinforce cyclone shelters, prepare medical aid kits, set up mobile solar battery charging stations, and distribute emergency radio receivers to rural community leaders.',
-      disasterType: 'cyclone',
-      urgency: 'critical',
-      status: 'active',
-      location: 'Feni Coastal Region',
-      coordinates: { lat: 23.0159, lng: 91.3976 },
-      volunteersNeeded: 50,
-      volunteersJoined: 42,
-      estimatedHours: 5,
-      imageUrl: 'https://images.unsplash.com/photo-1527482797697-8795b05a13fe?auto=format&fit=crop&w=1200&q=80',
-      images: [
-        'https://images.unsplash.com/photo-1527482797697-8795b05a13fe?auto=format&fit=crop&w=1200&q=80',
-      ],
-      postedBy: redCrescentId,
-    },
-    {
-      title: 'Kurigram Northern Flood River Embankment Defense',
-      shortDescription: 'Filling sandbags and fortifying vulnerable Jamuna river embankments to protect agricultural villages.',
-      fullDescription: 'Rising Jamuna river levels threaten to breach key earth embankments protecting 12 farming villages. Volunteers will assist local villagers and engineers in filling, transporting, and stacking 5,000 sandbags along vulnerable breach points.',
-      disasterType: 'flood',
-      urgency: 'moderate',
-      status: 'active',
-      location: 'Kurigram, Rangpur',
-      coordinates: { lat: 25.8054, lng: 89.6361 },
-      volunteersNeeded: 60,
-      volunteersJoined: 25,
-      estimatedHours: 4,
-      imageUrl: 'https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1200&q=80',
-      images: [
-        'https://images.unsplash.com/photo-1469571486292-0ba58a3f068b?auto=format&fit=crop&w=1200&q=80',
-      ],
-      postedBy: oceanCleanupId,
-    },
-    {
-      title: 'Dhaka Slum Fire Emergency Relief & Medical Drive',
-      shortDescription: 'Providing medical first aid, clothing, and temporary tents following an informal settlement fire.',
-      fullDescription: 'A severe fire devastated 120 informal housing structures in Korail Slum, leaving hundreds displaced. Volunteer teams are deploying immediately to provide emergency burn treatment supplies, warm clothes, infant care packages, and hygiene kits.',
-      disasterType: 'fire',
-      urgency: 'critical',
-      status: 'active',
-      location: 'Mohakhali, Dhaka',
-      coordinates: { lat: 23.8103, lng: 90.4125 },
-      volunteersNeeded: 25,
-      volunteersJoined: 21,
-      estimatedHours: 4,
-      imageUrl: 'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?auto=format&fit=crop&w=1200&q=80',
-      images: [
-        'https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?auto=format&fit=crop&w=1200&q=80',
-      ],
-      postedBy: fireServiceId,
-    },
-    {
-      title: 'Sunamganj Water Purification & Medical Clinic',
-      shortDescription: 'Operating mobile water purification units and conducting mobile healthcare drives for flood survivors.',
-      fullDescription: 'Post-flood water contamination poses high risks of waterborne diseases. Volunteer healthcare professionals and general volunteers will manage water distribution kiosks, hand out oral rehydration salts (ORS), and assist medical officers.',
-      disasterType: 'flood',
-      urgency: 'moderate',
-      status: 'resolved',
-      location: 'Sunamganj District',
-      coordinates: { lat: 25.0658, lng: 91.395 },
-      volunteersNeeded: 35,
-      volunteersJoined: 35,
-      estimatedHours: 6,
-      imageUrl: 'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=1200&q=80',
-      images: [
-        'https://images.unsplash.com/photo-1584515979956-d9f6e5d09982?auto=format&fit=crop&w=1200&q=80',
-      ],
-      postedBy: redCrescentId,
-    },
-  ];
+  // Seed 50 Missions dynamically with coordinates, estimated hours, and verified posters
+  const DISASTER_IMAGES: Record<string, string[]> = {
+    flood: [
+      'https://upload.wikimedia.org/wikipedia/commons/4/4b/Flood_in_Bangladesh_2020.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/a/ae/Flood_at_Sylhet.jpg'
+    ],
+    earthquake: [
+      'https://upload.wikimedia.org/wikipedia/commons/b/bd/2010_Haiti_earthquake_damage.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/5/52/Damage_after_2015_Nepal_earthquake_in_Kathmandu.jpg'
+    ],
+    fire: [
+      'https://upload.wikimedia.org/wikipedia/commons/e/e0/Fires_in_the_Amazon_Rainforest%2C_Brazil.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/7/75/Large_wildfire.jpg'
+    ],
+    cyclone: [
+      'https://upload.wikimedia.org/wikipedia/commons/d/df/US_Navy_071123-N-1752H-062_An_aerial_view_of_the_damage_to_villages_and_infrastructure_following_Cyclone_Sidr.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/5/5c/Cyclone_Amphan_aftermath.jpg'
+    ],
+    other: [
+      'https://upload.wikimedia.org/wikipedia/commons/3/30/Humanitarian_aid_in_Haiti.jpg',
+      'https://upload.wikimedia.org/wikipedia/commons/c/c5/Emergency_relief_supplies.jpg'
+    ]
+  };
+
+  const DISASTER_TYPES = ['flood', 'earthquake', 'fire', 'cyclone', 'other'];
+  const URGENCY_LEVELS = ['low', 'moderate', 'critical'];
+  const LOCATIONS = ['Sylhet', 'Dhaka', 'Chattogram', 'Khulna', 'Rajshahi', 'Barisal', 'Rangpur', 'Mymensingh', "Cox's Bazar", 'Sunamganj', 'Feni', 'Noakhali'];
+  const BD_BOUNDS = { latMin: 21.0, latMax: 26.0, lngMin: 88.0, lngMax: 92.5 };
+
+  const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+  const randomInt = (min: number, max: number) => Math.floor(randomInRange(min, max + 1));
+  const randomItem = <T>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+  const randomDateInLast6Months = () => {
+    const now = new Date();
+    const past = new Date();
+    past.setMonth(now.getMonth() - 6);
+    return new Date(past.getTime() + Math.random() * (now.getTime() - past.getTime()));
+  };
+
+  const orgIds = [redCrescentId, fireServiceId, oceanCleanupId];
+
+  console.log('Generating 50 demo missions...');
+  const missionsData = Array.from({ length: 50 }).map((_, i) => {
+    const disaster = randomItem(DISASTER_TYPES);
+    const urgency = randomItem(URGENCY_LEVELS);
+    const loc = randomItem(LOCATIONS);
+    const createdAt = randomDateInLast6Months();
+    const status = Math.random() > 0.3 ? 'resolved' : 'active';
+    const images = DISASTER_IMAGES[disaster] || DISASTER_IMAGES['other'];
+    
+    return {
+      title: `${loc} ${disaster.charAt(0).toUpperCase() + disaster.slice(1)} Response`,
+      shortDescription: `Emergency response mission for ${disaster} relief efforts in affected zones.`,
+      fullDescription: `This is an auto-generated demo mission. We need volunteers for immediate assistance regarding a recent ${disaster} in ${loc}. Duties include supply distribution, local guidance, and basic support. Urgency is ${urgency}.`,
+      disasterType: disaster,
+      urgency: urgency,
+      status: status,
+      location: `${loc}, Bangladesh`,
+      coordinates: { 
+        lat: randomInRange(BD_BOUNDS.latMin, BD_BOUNDS.latMax), 
+        lng: randomInRange(BD_BOUNDS.lngMin, BD_BOUNDS.lngMax) 
+      },
+      volunteersNeeded: randomInt(10, 100),
+      volunteersJoined: randomInt(0, 10),
+      estimatedHours: randomInt(2, 24),
+      imageUrl: images[0],
+      images: images,
+      postedBy: randomItem(orgIds),
+      createdAt: createdAt,
+      updatedAt: new Date(createdAt.getTime() + Math.random() * (Date.now() - createdAt.getTime()))
+    };
+  });
 
   const createdMissions = await Mission.insertMany(missionsData);
   console.log(`✓ Seeded ${createdMissions.length} active disaster response missions`);
@@ -200,13 +160,13 @@ async function seed() {
       quote: 'RescueLink transformed how our emergency teams coordinate in flood-prone districts. We were able to recruit 40 verified volunteers in under two hours.',
       authorName: 'Tanvir Hossain',
       authorRole: 'Regional Response Coordinator, Red Crescent',
-      avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      avatarUrl: 'https://i.pravatar.cc/150?img=11',
     },
     {
       quote: 'As a student volunteer, seeing live viewer counts and immediate location pins gave me total confidence in where my help was needed most.',
       authorName: 'Nusrat Jahan',
       authorRole: 'University Youth Volunteer',
-      avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+      avatarUrl: 'https://i.pravatar.cc/150?img=5',
     },
   ];
   await Testimonial.insertMany(testimonials);

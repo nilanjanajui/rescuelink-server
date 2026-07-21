@@ -85,7 +85,7 @@ async function seedLarge() {
     .toArray();
 
   const userByEmail = new Map(users.map((u) => [u.email as string, String(u._id)]));
-  
+
   const orgIds = [
     userByEmail.get('org.redcrescent@rescuelink.org'),
     userByEmail.get('org.fireservice@rescuelink.org'),
@@ -101,13 +101,13 @@ async function seedLarge() {
 
   // Cleanup old large-seed mock users and data
   await db.collection('user').deleteMany({ email: { $regex: /^mock_volunteer_/ } });
-  
+
   // Cleanup based on orgIds to properly clear demo missions and their signups
   const demoMissions = await Mission.find({ postedBy: { $in: orgIds } }, { _id: 1 });
   const demoMissionIds = demoMissions.map(m => m._id.toString());
   await VolunteerSignup.deleteMany({ missionId: { $in: demoMissionIds } });
   await Mission.deleteMany({ postedBy: { $in: orgIds } });
-  
+
   // Create 100 mock volunteers
   console.log('Creating 100 demo volunteer profiles...');
   const mockVolunteers = Array.from({ length: 100 }).map((_, i) => ({
@@ -124,7 +124,7 @@ async function seedLarge() {
   if (mockVolunteers.length > 0) {
     await db.collection('user').insertMany(mockVolunteers);
   }
-  
+
   const volunteerIds = mockVolunteers.map(v => String(v._id));
 
   // Create 50 mock missions
@@ -135,7 +135,7 @@ async function seedLarge() {
     const loc = randomItem(LOCATIONS);
     const createdAt = randomDateInLast6Months();
     const status = Math.random() > 0.3 ? 'resolved' : 'active';
-    
+
     return {
       title: `${loc} ${disaster.charAt(0).toUpperCase() + disaster.slice(1)} Response`,
       shortDescription: `Emergency response mission for ${disaster} relief efforts in affected zones.`,
@@ -144,9 +144,9 @@ async function seedLarge() {
       urgency: urgency,
       status: status,
       location: `${loc}, Bangladesh`,
-      coordinates: { 
-        lat: randomInRange(BD_BOUNDS.latMin, BD_BOUNDS.latMax), 
-        lng: randomInRange(BD_BOUNDS.lngMin, BD_BOUNDS.lngMax) 
+      coordinates: {
+        lat: randomInRange(BD_BOUNDS.latMin, BD_BOUNDS.latMax),
+        lng: randomInRange(BD_BOUNDS.lngMin, BD_BOUNDS.lngMax)
       },
       volunteersNeeded: randomInt(10, 100),
       volunteersJoined: 0, // Will be updated
@@ -164,15 +164,15 @@ async function seedLarge() {
   // Create random signups
   console.log('Assigning volunteers to missions...');
   const signups = [];
-  
+
   for (const mission of insertedMissions) {
     // Randomly assign between 0 and volunteersNeeded volunteers to this mission
     const numSignups = randomInt(0, mission.volunteersNeeded);
-    
+
     // Shuffle volunteers to pick random ones
     const shuffledVolunteers = [...volunteerIds].sort(() => 0.5 - Math.random());
     const selectedVolunteers = shuffledVolunteers.slice(0, Math.min(numSignups, volunteerIds.length));
-    
+
     for (const vId of selectedVolunteers) {
       signups.push({
         missionId: mission._id,
@@ -180,7 +180,7 @@ async function seedLarge() {
         joinedAt: new Date(mission.createdAt.getTime() + Math.random() * (Date.now() - mission.createdAt.getTime()))
       });
     }
-    
+
     // Update the mission's volunteersJoined count
     mission.volunteersJoined = selectedVolunteers.length;
     await mission.save();
@@ -189,7 +189,7 @@ async function seedLarge() {
   if (signups.length > 0) {
     await VolunteerSignup.insertMany(signups);
   }
-  
+
   console.log(`✓ Generated ${signups.length} random volunteer signups.`);
 
   console.log('🎉 Large seeding completed successfully!');
