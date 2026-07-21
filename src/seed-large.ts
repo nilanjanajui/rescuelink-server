@@ -151,6 +151,7 @@ async function seedLarge() {
       volunteersNeeded: randomInt(10, 100),
       volunteersJoined: 0, // Will be updated
       estimatedHours: randomInt(2, 24),
+      imageUrl: (DISASTER_IMAGES[disaster] || DISASTER_IMAGES['other'])[0],
       images: DISASTER_IMAGES[disaster] || DISASTER_IMAGES['other'],
       postedBy: randomItem(orgIds),
       createdAt: createdAt,
