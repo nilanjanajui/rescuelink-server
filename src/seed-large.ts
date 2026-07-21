@@ -24,6 +24,29 @@ const BD_BOUNDS = {
   lngMax: 92.5
 };
 
+const DISASTER_IMAGES: Record<string, string[]> = {
+  flood: [
+    'https://upload.wikimedia.org/wikipedia/commons/4/4b/Flood_in_Bangladesh_2020.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/a/ae/Flood_at_Sylhet.jpg'
+  ],
+  earthquake: [
+    'https://upload.wikimedia.org/wikipedia/commons/b/bd/2010_Haiti_earthquake_damage.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/5/52/Damage_after_2015_Nepal_earthquake_in_Kathmandu.jpg'
+  ],
+  fire: [
+    'https://upload.wikimedia.org/wikipedia/commons/e/e0/Fires_in_the_Amazon_Rainforest%2C_Brazil.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/7/75/Large_wildfire.jpg'
+  ],
+  cyclone: [
+    'https://upload.wikimedia.org/wikipedia/commons/d/df/US_Navy_071123-N-1752H-062_An_aerial_view_of_the_damage_to_villages_and_infrastructure_following_Cyclone_Sidr.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/5/5c/Cyclone_Amphan_aftermath.jpg'
+  ],
+  other: [
+    'https://upload.wikimedia.org/wikipedia/commons/3/30/Humanitarian_aid_in_Haiti.jpg',
+    'https://upload.wikimedia.org/wikipedia/commons/c/c5/Emergency_relief_supplies.jpg'
+  ]
+};
+
 function randomInRange(min: number, max: number) {
   return Math.random() * (max - min) + min;
 }
@@ -128,10 +151,7 @@ async function seedLarge() {
       volunteersNeeded: randomInt(10, 100),
       volunteersJoined: 0, // Will be updated
       estimatedHours: randomInt(2, 24),
-      images: [
-        `https://images.unsplash.com/photo-1547683905-f686c993aae5?auto=format&fit=crop&w=1200&q=80`,
-        `https://images.unsplash.com/photo-1590059207019-1ea19e794216?auto=format&fit=crop&w=1200&q=80`
-      ],
+      images: DISASTER_IMAGES[disaster] || DISASTER_IMAGES['other'],
       postedBy: randomItem(orgIds),
       createdAt: createdAt,
       updatedAt: new Date(createdAt.getTime() + Math.random() * (Date.now() - createdAt.getTime()))
