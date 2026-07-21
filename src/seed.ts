@@ -7,7 +7,8 @@
  * never writes to it.
  *
  * Prerequisite: run `npm run seed:auth` in rescuelink-client first, so the
- * five accounts below already exist in the shared MongoDB database.
+ * org/demo accounts AND the 100 volunteer.001..volunteer.100 accounts
+ * already exist in the shared MongoDB database.
  *
  * Run with: npm run seed
  */
@@ -21,58 +22,123 @@ import Update from './models/Update';
 import Testimonial from './models/Testimonial';
 import Subscriber from './models/Subscriber';
 
-const SEED_EMAILS = {
-  demoUser: 'demo.user@rescuelink.org',
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+const ORG_EMAILS = {
   demoAdmin: 'demo.admin@rescuelink.org',
   redCrescent: 'org.redcrescent@rescuelink.org',
   fireService: 'org.fireservice@rescuelink.org',
   oceanCleanup: 'org.oceancleanup@rescuelink.org',
 } as const;
 
-type SeedUserKey = keyof typeof SEED_EMAILS;
+type OrgKey = keyof typeof ORG_EMAILS;
 
-const img = (seed: string, w = 900, h = 600) => `https://picsum.photos/seed/${seed}/${w}/${h}`;
+const DEMO_USER_EMAIL = 'demo.user@rescuelink.org';
 
-async function getSeedUserIds(): Promise<Record<SeedUserKey, string>> {
+const VOLUNTEER_COUNT = 100;
+const volunteerEmail = (n: number) => `volunteer.${String(n).padStart(3, '0')}@rescuelink.org`;
+const VOLUNTEER_EMAILS = Array.from({ length: VOLUNTEER_COUNT }, (_, i) => volunteerEmail(i + 1));
+
+async function getSeedUsers(): Promise<{
+  orgIds: Record<OrgKey, string>;
+  demoUserId: string;
+  volunteerIds: string[];
+}> {
   // Better Auth owns the `user` collection; we read it directly rather than
   // through a Mongoose model since Express doesn't (and shouldn't) own it.
   const db = mongoose.connection.db;
   if (!db) throw new Error('No active Mongo connection');
 
+  const allEmails = [...Object.values(ORG_EMAILS), DEMO_USER_EMAIL, ...VOLUNTEER_EMAILS];
+
   const users = await db
     .collection('user')
-    .find({ email: { $in: Object.values(SEED_EMAILS) } })
+    .find({ email: { $in: allEmails } })
     .toArray();
 
   const byEmail = new Map(users.map((u) => [u.email as string, String(u._id)]));
 
-  const result = {} as Record<SeedUserKey, string>;
-  for (const [key, email] of Object.entries(SEED_EMAILS) as [SeedUserKey, string][]) {
+  const orgIds = {} as Record<OrgKey, string>;
+  for (const [key, email] of Object.entries(ORG_EMAILS) as [OrgKey, string][]) {
     const id = byEmail.get(email);
     if (!id) {
-      throw new Error(
-        `Could not find a user for ${email}. Run "npm run seed:auth" in rescuelink-client first.`
-      );
+      throw new Error(`Could not find a user for ${email}. Run "npm run seed:auth" first.`);
     }
-    result[key] = id;
+    orgIds[key] = id;
   }
-  return result;
+
+  const demoUserId = byEmail.get(DEMO_USER_EMAIL);
+  if (!demoUserId) {
+    throw new Error(`Could not find a user for ${DEMO_USER_EMAIL}. Run "npm run seed:auth" first.`);
+  }
+
+  const volunteerIds = VOLUNTEER_EMAILS.map((email) => byEmail.get(email)).filter(
+    (id): id is string => Boolean(id)
+  );
+
+  if (volunteerIds.length < VOLUNTEER_COUNT) {
+    throw new Error(
+      `Expected ${VOLUNTEER_COUNT} volunteer accounts but found ${volunteerIds.length}. ` +
+      `Add the volunteer.001..volunteer.${VOLUNTEER_COUNT} accounts to your seed:auth script first.`
+    );
+  }
+
+  return { orgIds, demoUserId, volunteerIds };
 }
+
+// ---------------------------------------------------------------------------
+// Images — real Unsplash photos grouped by disaster theme (free Unsplash
+// License, verified live at seed-authoring time). Reused per theme rather
+// than faking uniqueness with random picsum seeds.
+// ---------------------------------------------------------------------------
+
+const PHOTO = {
+  flood: '1741081288260-877057e3fa27',
+  cyclone: '1773592612651-9669e67366c3',
+  earthquake: '1564662655264-f818dde0c6cf',
+  fire: '1632844275482-418744f357d8',
+  wildfire: '1663703096369-f0acd9c2c2b3',
+  aid: '1593113646773-028c64a8f1b8',
+} as const;
+
+type PhotoCategory = keyof typeof PHOTO;
+
+const unsplash = (id: string, w = 900, h = 600) =>
+  `https://images.unsplash.com/photo-${id}?w=${w}&h=${h}&fit=crop&auto=format&q=80`;
+
+const missionImages = (category: PhotoCategory) => [
+  unsplash(PHOTO[category]),
+  unsplash(PHOTO[category], 1200, 800),
+  unsplash(PHOTO.aid, 900, 600),
+];
+
+const avatar = (id: string) => unsplash(id, 200, 200);
+
+// ---------------------------------------------------------------------------
+// Missions
+// ---------------------------------------------------------------------------
+
+type DisasterType = 'flood' | 'earthquake' | 'fire' | 'cyclone' | 'other';
+type Urgency = 'critical' | 'moderate' | 'low';
+type Status = 'active' | 'resolved';
 
 type MissionSeed = {
   title: string;
   shortDescription: string;
   fullDescription: string;
-  disasterType: 'flood' | 'earthquake' | 'fire' | 'cyclone' | 'other';
-  urgency: 'critical' | 'moderate' | 'low';
-  status: 'active' | 'resolved';
+  disasterType: DisasterType;
+  urgency: Urgency;
+  status: Status;
   location: string;
   volunteersNeeded: number;
-  imageSeed: string;
-  postedBy: SeedUserKey;
+  photoCategory: PhotoCategory;
+  postedBy: OrgKey;
 };
 
-const MISSION_SEEDS: MissionSeed[] = [
+// 18 hand-authored flagship missions — kept as-is for narrative quality.
+const CURATED_MISSIONS: MissionSeed[] = [
   {
     title: 'Sylhet Flash Flood Response',
     shortDescription: 'Emergency boat rescues and clean water distribution across flooded wards.',
@@ -83,7 +149,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: 'Sylhet, Bangladesh',
     volunteersNeeded: 60,
-    imageSeed: 'sylhet-flood',
+    photoCategory: 'flood',
     postedBy: 'redCrescent',
   },
   {
@@ -96,7 +162,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: 'Dhaka, Bangladesh',
     volunteersNeeded: 30,
-    imageSeed: 'dhaka-waterlog',
+    photoCategory: 'flood',
     postedBy: 'redCrescent',
   },
   {
@@ -109,7 +175,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: 'Kurigram, Bangladesh',
     volunteersNeeded: 45,
-    imageSeed: 'kurigram-erosion',
+    photoCategory: 'flood',
     postedBy: 'redCrescent',
   },
   {
@@ -122,7 +188,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'resolved',
     location: 'Chittagong, Bangladesh',
     volunteersNeeded: 25,
-    imageSeed: 'ctg-landslide',
+    photoCategory: 'earthquake',
     postedBy: 'fireService',
   },
   {
@@ -135,20 +201,20 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: "Cox's Bazar, Bangladesh",
     volunteersNeeded: 80,
-    imageSeed: 'coxsbazar-cyclone',
+    photoCategory: 'cyclone',
     postedBy: 'redCrescent',
   },
   {
     title: 'Bhola Cyclone Rebuild Initiative',
     shortDescription: 'Rebuilding damaged homes and restoring embankments post-cyclone.',
     fullDescription:
-      'Following last season\'s cyclone, this mission coordinated the rebuilding of over 40 homes and reinforced coastal embankments in Bhola. Rebuild phase is now complete.',
+      "Following last season's cyclone, this mission coordinated the rebuilding of over 40 homes and reinforced coastal embankments in Bhola. Rebuild phase is now complete.",
     disasterType: 'cyclone',
     urgency: 'moderate',
     status: 'resolved',
     location: 'Bhola, Bangladesh',
     volunteersNeeded: 35,
-    imageSeed: 'bhola-rebuild',
+    photoCategory: 'cyclone',
     postedBy: 'redCrescent',
   },
   {
@@ -161,7 +227,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: 'Barguna, Bangladesh',
     volunteersNeeded: 20,
-    imageSeed: 'barguna-prep',
+    photoCategory: 'cyclone',
     postedBy: 'redCrescent',
   },
   {
@@ -174,7 +240,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: 'Rangpur, Bangladesh',
     volunteersNeeded: 15,
-    imageSeed: 'rangpur-quake',
+    photoCategory: 'earthquake',
     postedBy: 'fireService',
   },
   {
@@ -187,7 +253,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'resolved',
     location: 'Mymensingh, Bangladesh',
     volunteersNeeded: 12,
-    imageSeed: 'mymensingh-quake',
+    photoCategory: 'earthquake',
     postedBy: 'fireService',
   },
   {
@@ -200,7 +266,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: 'Dhaka, Bangladesh',
     volunteersNeeded: 40,
-    imageSeed: 'dhaka-fire',
+    photoCategory: 'fire',
     postedBy: 'fireService',
   },
   {
@@ -213,7 +279,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'resolved',
     location: 'Chattogram, Bangladesh',
     volunteersNeeded: 20,
-    imageSeed: 'ctg-shipyard-fire',
+    photoCategory: 'fire',
     postedBy: 'fireService',
   },
   {
@@ -226,11 +292,11 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: 'Khulna, Bangladesh',
     volunteersNeeded: 25,
-    imageSeed: 'sundarbans-fire',
+    photoCategory: 'wildfire',
     postedBy: 'oceanCleanup',
   },
   {
-    title: "Rohingya Refugee Camp Health Support",
+    title: 'Rohingya Refugee Camp Health Support',
     shortDescription: 'Volunteer medical staff and supply runs for camp health posts.',
     fullDescription:
       "Camp health posts near Cox's Bazar are stretched thin. This mission coordinates volunteer medical staff, medicine supply runs, and basic health screenings for camp residents.",
@@ -239,7 +305,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: "Cox's Bazar, Bangladesh",
     volunteersNeeded: 50,
-    imageSeed: 'refugee-health',
+    photoCategory: 'aid',
     postedBy: 'redCrescent',
   },
   {
@@ -252,7 +318,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: 'Kahramanmaraş, Turkey',
     volunteersNeeded: 100,
-    imageSeed: 'anatolia-quake',
+    photoCategory: 'earthquake',
     postedBy: 'demoAdmin',
   },
   {
@@ -265,7 +331,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: 'Coastal Louisiana, USA',
     volunteersNeeded: 70,
-    imageSeed: 'seaboard-flood',
+    photoCategory: 'flood',
     postedBy: 'demoAdmin',
   },
   {
@@ -278,7 +344,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'active',
     location: 'California, USA',
     volunteersNeeded: 55,
-    imageSeed: 'canyon-wildfire',
+    photoCategory: 'wildfire',
     postedBy: 'demoAdmin',
   },
   {
@@ -291,7 +357,7 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'resolved',
     location: 'Nassau, Bahamas',
     volunteersNeeded: 40,
-    imageSeed: 'island-hurricane',
+    photoCategory: 'cyclone',
     postedBy: 'oceanCleanup',
   },
   {
@@ -304,10 +370,185 @@ const MISSION_SEEDS: MissionSeed[] = [
     status: 'resolved',
     location: 'Jamalpur, Bangladesh',
     volunteersNeeded: 18,
-    imageSeed: 'jamalpur-coldwave',
+    photoCategory: 'aid',
     postedBy: 'redCrescent',
   },
+  {
+    title: 'Cumilla Dengue Outbreak Response',
+    shortDescription: 'Volunteer health screening and mosquito-control support during a dengue surge.',
+    fullDescription:
+      'A sharp rise in dengue cases has overwhelmed the local health post in Cumilla during peak monsoon season. This mission coordinates volunteer health screening teams, door-to-door mosquito-breeding-site inspections, and supply runs for oral rehydration salts and basic medication to relieve pressure on overstretched clinics.',
+    disasterType: 'other',
+    urgency: 'critical',
+    status: 'active',
+    location: 'Cumilla, Bangladesh',
+    volunteersNeeded: 35,
+    photoCategory: 'aid',
+    postedBy: 'redCrescent',
+  },
+
 ];
+
+// ---------------------------------------------------------------------------
+// Generated missions — fill out to 50 total (32 more) via templates.
+// Trade-off: these read more formulaically than the curated set above.
+// Fine for load-testing/demo volume; if you need 32 more hand-written
+// narratives instead, replace this block with literal MissionSeed objects.
+// ---------------------------------------------------------------------------
+
+type ScenarioTemplate = {
+  disasterType: DisasterType;
+  photoCategory: PhotoCategory;
+  postedBy: OrgKey;
+  shortDescription: (loc: string) => string;
+  fullDescription: (loc: string, detail: string) => string;
+  locations: { name: string; detail: string }[];
+};
+
+const GENERATED_TEMPLATES: ScenarioTemplate[] = [
+  {
+    disasterType: 'flood',
+    photoCategory: 'flood',
+    postedBy: 'redCrescent',
+    shortDescription: (loc) => `Boat rescues and water purification support for flood-hit ${loc}.`,
+    fullDescription: (loc, detail) =>
+      `Sustained heavy rainfall has flooded low-lying areas of ${loc}. ${detail} Volunteers are needed for boat-based rescues, distributing purified drinking water, and helping displaced families reach temporary shelter.`,
+    locations: [
+      { name: 'Faridpur, Bangladesh', detail: 'Several riverside villages are cut off from the main road.' },
+      { name: 'Bogura, Bangladesh', detail: 'Crop fields and several homesteads are underwater.' },
+      { name: 'Sirajganj, Bangladesh', detail: 'Embankment breaches have flooded three unions overnight.' },
+      { name: 'Assam, India', detail: 'The Brahmaputra has overtopped its banks near several tea estates.' },
+      { name: 'Jakarta, Indonesia', detail: 'Monsoon drains are overwhelmed across several city districts.' },
+      { name: 'Manila, Philippines', detail: 'Typhoon runoff has flooded low-lying residential blocks.' },
+      { name: 'Mekong Delta, Vietnam', detail: 'Seasonal flooding has submerged rice paddies and access roads.' },
+    ],
+  },
+  {
+    disasterType: 'cyclone',
+    photoCategory: 'cyclone',
+    postedBy: 'redCrescent',
+    shortDescription: (loc) => `Shelter staffing and evacuation support ahead of a cyclone nearing ${loc}.`,
+    fullDescription: (loc, detail) =>
+      `A tropical cyclone is tracking toward ${loc}. ${detail} Volunteers are needed to help staff shelters, distribute emergency supplies, and support evacuation logistics for at-risk households.`,
+    locations: [
+      { name: 'Patuakhali, Bangladesh', detail: 'Coastal embankments here have failed in past storms.' },
+      { name: 'Noakhali, Bangladesh', detail: 'Several char islands have no direct evacuation route.' },
+      { name: 'Odisha, India', detail: 'Fishing communities along the coast are on alert.' },
+      { name: 'Key West, Florida, USA', detail: 'Mandatory evacuation zones have been declared.' },
+      { name: 'Guangdong, China', detail: 'Port operations have suspended ahead of landfall.' },
+      { name: 'Chattogram coastal belt, Bangladesh', detail: 'Storm surge is expected to affect low-lying wards.' },
+    ],
+  },
+  {
+    disasterType: 'earthquake',
+    photoCategory: 'earthquake',
+    postedBy: 'fireService',
+    shortDescription: (loc) => `Structural assessments and rescue support following a tremor in ${loc}.`,
+    fullDescription: (loc, detail) =>
+      `An earthquake has caused visible structural damage across parts of ${loc}. ${detail} Volunteer engineers and rescue crews are coordinating rapid building assessments and resident safety checks.`,
+    locations: [
+      { name: 'Kathmandu, Nepal', detail: 'Several older masonry buildings have visible cracking.' },
+      { name: 'Sichuan, China', detail: 'Mountain roads to affected villages remain partially blocked.' },
+      { name: 'Antakya, Turkey', detail: 'Aftershocks are complicating search-and-rescue work.' },
+      { name: 'Ambon, Indonesia', detail: 'Coastal areas are also being checked for tsunami risk.' },
+      { name: 'Bogotá, Colombia', detail: 'Older neighborhoods on the city outskirts are worst affected.' },
+      { name: 'Christchurch, New Zealand', detail: 'Heritage buildings downtown are undergoing priority inspection.' },
+    ],
+  },
+  {
+    disasterType: 'fire',
+    photoCategory: 'fire',
+    postedBy: 'fireService',
+    shortDescription: (loc) => `Emergency response and worker support after an industrial fire in ${loc}.`,
+    fullDescription: (loc, detail) =>
+      `A fire broke out at an industrial facility in ${loc}. ${detail} Volunteers are needed for emergency medical support, coordination with fire crews, and assistance to affected workers and their families.`,
+    locations: [
+      { name: 'Narsingdi, Bangladesh', detail: 'A textile mill has sustained significant structural damage.' },
+      { name: 'Gazipur, Bangladesh', detail: 'An industrial park warehouse fire has displaced nearby residents.' },
+    ],
+  },
+  {
+    disasterType: 'fire',
+    photoCategory: 'wildfire',
+    postedBy: 'oceanCleanup',
+    shortDescription: (loc) => `Containment support and evacuee shelter for a wildfire near ${loc}.`,
+    fullDescription: (loc, detail) =>
+      `A fast-moving wildfire is burning near ${loc}. ${detail} Volunteers are assisting fire crews with containment lines, evacuee shelter, and care for displaced pets and livestock.`,
+    locations: [
+      { name: 'New South Wales, Australia', detail: 'Dry bushland conditions are driving rapid spread.' },
+      { name: 'Peloponnese, Greece', detail: 'Strong coastal winds are pushing the fire toward hillside villages.' },
+      { name: 'Central Portugal', detail: 'Pine forest terrain is slowing ground crew access.' },
+      { name: 'Oregon, USA', detail: 'Smoke has closed several forest access roads.' },
+    ],
+  },
+  {
+    disasterType: 'other',
+    photoCategory: 'aid',
+    postedBy: 'redCrescent',
+    shortDescription: (loc) => `Volunteer-run health and relief support for vulnerable communities in ${loc}.`,
+    fullDescription: (loc, detail) =>
+      `${detail} This mission coordinates volunteer medical staff, supply distribution, and basic health screenings for residents of ${loc}.`,
+    locations: [
+      { name: 'Khulna, Bangladesh', detail: 'An unusually severe cold wave is putting riverside communities at risk.' },
+      { name: 'Panchagarh, Bangladesh', detail: 'Overnight temperatures have dropped sharply in this northern district.' },
+      { name: 'Rangamati, Bangladesh', detail: 'A landslide has blocked road access to several hillside settlements.' },
+      { name: 'Bandarban, Bangladesh', detail: 'Monsoon landslides have damaged homes along the hill slopes.' },
+      { name: 'Dhaka informal settlements', detail: 'A mobile health outreach is needed for underserved slum residents.' },
+      { name: 'Sylhet tea gardens, Bangladesh', detail: 'Tea garden worker communities lack easy access to health posts.' },
+    ],
+  },
+];
+
+function urgencyFor(index: number): Urgency {
+  const cycle: Urgency[] = ['critical', 'moderate', 'low'];
+  return cycle[index % cycle.length];
+}
+
+function statusFor(index: number): Status {
+  // Roughly 1 in 4 generated missions is resolved, matching the curated set's ratio.
+  return index % 4 === 3 ? 'resolved' : 'active';
+}
+
+function volunteersNeededFor(urgency: Urgency, index: number): number {
+  const base = urgency === 'critical' ? 55 : urgency === 'moderate' ? 30 : 15;
+  return base + ((index * 7) % 20);
+}
+
+function buildGeneratedMissions(): MissionSeed[] {
+  const missions: MissionSeed[] = [];
+  let i = 0;
+  for (const template of GENERATED_TEMPLATES) {
+    for (const { name, detail } of template.locations) {
+      const urgency = urgencyFor(i);
+      missions.push({
+        title: `${name.split(',')[0]} ${template.disasterType === 'other' ? 'Relief' : 'Response'} Mission`,
+        shortDescription: template.shortDescription(name),
+        fullDescription: template.fullDescription(name, detail),
+        disasterType: template.disasterType,
+        urgency,
+        status: statusFor(i),
+        location: name,
+        volunteersNeeded: volunteersNeededFor(urgency, i),
+        photoCategory: template.photoCategory,
+        postedBy: template.postedBy,
+      });
+      i++;
+    }
+  }
+  return missions;
+}
+
+const MISSION_SEEDS: MissionSeed[] = [...CURATED_MISSIONS, ...buildGeneratedMissions()];
+
+if (MISSION_SEEDS.length !== 50) {
+  throw new Error(
+    `Expected exactly 50 missions, got ${MISSION_SEEDS.length}. Adjust CURATED_MISSIONS or GENERATED_TEMPLATES locations.`
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Testimonials
+// ---------------------------------------------------------------------------
 
 const TESTIMONIAL_SEEDS = [
   {
@@ -315,30 +556,34 @@ const TESTIMONIAL_SEEDS = [
       'The real-time coordination during the Sylhet floods let us mobilize volunteers twice as fast as we could before.',
     authorName: 'Nasrin Akter',
     authorRole: 'Volunteer Coordinator, Bangladesh Red Crescent',
-    avatarUrl: img('nasrin-akter', 200, 200),
+    avatarUrl: avatar('1758518727888-ffa196002e59'),
   },
   {
     quote:
       "RescueLink's live mission board meant our crews always knew exactly where help was needed most.",
     authorName: 'Kamal Hossain',
     authorRole: 'Field Officer, Bangladesh Fire Service',
-    avatarUrl: img('kamal-hossain', 200, 200),
+    avatarUrl: avatar('1758598497192-15ffa411c3de'),
   },
   {
     quote:
       'We tracked cleanup progress across three coastal sites in real time — something spreadsheets never let us do.',
     authorName: 'Farhana Rahman',
     authorRole: 'Program Lead, Ocean Cleanup BD',
-    avatarUrl: img('farhana-rahman', 200, 200),
+    avatarUrl: avatar('1613023158271-4b1094000d5e'),
   },
   {
     quote:
       'As a first-time volunteer, sign-up took under two minutes and I was matched to a mission the same day.',
     authorName: 'Tanvir Ahmed',
     authorRole: 'Volunteer',
-    avatarUrl: img('tanvir-ahmed', 200, 200),
+    avatarUrl: avatar('1549043671-1e4550948355'),
   },
 ];
+
+// ---------------------------------------------------------------------------
+// Seed
+// ---------------------------------------------------------------------------
 
 function randomDateWithinLastMonths(months: number): Date {
   const now = Date.now();
@@ -352,8 +597,12 @@ async function seed() {
   await mongoose.connect(process.env.MONGO_URI);
   console.log('Connected to MongoDB');
 
-  const userIds = await getSeedUserIds();
-  const allUserIds = Object.values(userIds);
+  const { orgIds, demoUserId, volunteerIds } = await getSeedUsers();
+
+  // Volunteers are the 100 dedicated accounts plus the demo user (so
+  // "my missions" has something to show for demoUser). Org/admin accounts
+  // post missions but no longer sign up as volunteers for their own work.
+  const signupPool = [...volunteerIds, demoUserId];
 
   // Wipe app-data collections only — never touches Better Auth's collections.
   await Promise.all([
@@ -376,22 +625,22 @@ async function seed() {
       location: m.location,
       volunteersNeeded: m.volunteersNeeded,
       volunteersJoined: 0, // filled in below once signups are generated
-      imageUrl: img(m.imageSeed),
-      images: [img(m.imageSeed), img(`${m.imageSeed}-2`), img(`${m.imageSeed}-3`)],
-      postedBy: userIds[m.postedBy],
+      imageUrl: unsplash(PHOTO[m.photoCategory]),
+      images: missionImages(m.photoCategory),
+      postedBy: orgIds[m.postedBy],
     }))
   );
   console.log(`Seeded ${missions.length} missions`);
 
-  // Volunteer signups: each mission gets 2-4 random volunteers from the
-  // seeded user pool, joined at random points over the last 6 months.
+  // Volunteer signups: each mission gets a random slice of the 101-person
+  // signup pool, sized loosely off how many volunteers the mission needs.
   const signupDocs: { missionId: string; userId: string; joinedAt: Date }[] = [];
   const joinedCountByMission = new Map<string, number>();
 
   for (const mission of missions) {
-    const volunteerCount = 2 + Math.floor(Math.random() * 3); // 2-4
-    const shuffled = [...allUserIds].sort(() => Math.random() - 0.5);
-    const chosen = shuffled.slice(0, volunteerCount);
+    const target = Math.max(3, Math.min(20, Math.round(mission.volunteersNeeded / 4)));
+    const shuffled = [...signupPool].sort(() => Math.random() - 0.5);
+    const chosen = shuffled.slice(0, target);
 
     for (const userId of chosen) {
       signupDocs.push({
@@ -404,7 +653,7 @@ async function seed() {
   }
 
   await VolunteerSignup.insertMany(signupDocs);
-  console.log(`Seeded ${signupDocs.length} volunteer signups`);
+  console.log(`Seeded ${signupDocs.length} volunteer signups across ${signupPool.length} volunteers`);
 
   // Keep volunteersJoined on each mission consistent with the signups above.
   await Promise.all(
@@ -418,13 +667,13 @@ async function seed() {
 
   // A couple of progress updates for a handful of active, higher-profile missions.
   const posterNames: Record<string, string> = {
-    [userIds.redCrescent]: 'Bangladesh Red Crescent',
-    [userIds.fireService]: 'Bangladesh Fire Service',
-    [userIds.oceanCleanup]: 'Ocean Cleanup BD',
-    [userIds.demoAdmin]: 'Demo Admin',
+    [orgIds.redCrescent]: 'Bangladesh Red Crescent',
+    [orgIds.fireService]: 'Bangladesh Fire Service',
+    [orgIds.oceanCleanup]: 'Ocean Cleanup BD',
+    [orgIds.demoAdmin]: 'Demo Admin',
   };
 
-  const updateTargets = missions.filter((m) => m.status === 'active').slice(0, 6);
+  const updateTargets = missions.filter((m) => m.status === 'active').slice(0, 12);
   const updateDocs = updateTargets.flatMap((mission) => [
     {
       missionId: String(mission._id),
