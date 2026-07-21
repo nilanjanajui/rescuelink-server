@@ -3,13 +3,54 @@ import mongoose from 'mongoose';
 import Mission from '../models/Mission';
 import VolunteerSignup from '../models/VolunteerSignup';
 import Update from '../models/Update';
+import { geocodeLocation } from '../lib/geocoder';
 
-// GET /api/missions — public listing.
-// Supports two modes:
-//  - `limit` alone (used by the homepage's FeaturedMissions): returns a flat
-//    array, no pagination metadata.
-//  - `page`/`pageSize` (used by the Explore page): returns pagination info
-//    alongside the results, plus search/sort/filtering.
+// Helper to resolve poster names & verification status from Better Auth's `user` collection
+async function enrichMissionsWithPosters(missions: any[]) {
+  const { db } = mongoose.connection;
+  if (!db || missions.length === 0) {
+    return missions.map((m) => ({
+      ... (m.toObject ? m.toObject() : m),
+      posterName: 'Organization',
+      isVerified: false,
+    }));
+  }
+
+  const posterIds = [...new Set(missions.map((m) => m.postedBy))];
+  const validObjectIds = posterIds
+    .filter((id) => mongoose.Types.ObjectId.isValid(id))
+    .map((id) => new mongoose.Types.ObjectId(id));
+
+  let posterMap = new Map<string, { name: string; isVerified: boolean }>();
+
+  if (validObjectIds.length > 0) {
+    const users = await db
+      .collection('user')
+      .find({ _id: { $in: validObjectIds } })
+      .project({ name: 1, isVerified: 1 })
+      .toArray()
+      .catch(() => []);
+
+    posterMap = new Map(
+      users.map((u) => [
+        String(u._id),
+        { name: (u.name as string) || 'Organization', isVerified: !!u.isVerified },
+      ])
+    );
+  }
+
+  return missions.map((m) => {
+    const obj = m.toObject ? m.toObject() : m;
+    const poster = posterMap.get(obj.postedBy);
+    return {
+      ...obj,
+      posterName: poster?.name || 'Organization',
+      isVerified: poster?.isVerified || false,
+    };
+  });
+}
+
+// GET /api/missions — public listing with poster enrichment and filtering
 export const getMissions = async (req: Request, res: Response) => {
   try {
     const {
@@ -61,7 +102,8 @@ export const getMissions = async (req: Request, res: Response) => {
 
     // Simple "featured" mode — flat array, no pagination.
     if (limit && !page) {
-      const missions = await Mission.aggregate([...pipeline, { $limit: Number(limit) }]);
+      const rawMissions = await Mission.aggregate([...pipeline, { $limit: Number(limit) }]);
+      const missions = await enrichMissionsWithPosters(rawMissions);
       return res.json({ missions });
     }
 
@@ -69,7 +111,7 @@ export const getMissions = async (req: Request, res: Response) => {
     const pageNum = Math.max(1, Number(page ?? '1'));
     const pageSizeNum = Math.max(1, Number(pageSize));
 
-    const [missions, countResult] = await Promise.all([
+    const [rawMissions, countResult] = await Promise.all([
       Mission.aggregate([
         ...pipeline,
         { $skip: (pageNum - 1) * pageSizeNum },
@@ -79,6 +121,7 @@ export const getMissions = async (req: Request, res: Response) => {
     ]);
 
     const total = countResult[0]?.total ?? 0;
+    const missions = await enrichMissionsWithPosters(rawMissions);
 
     res.json({
       missions,
@@ -94,45 +137,22 @@ export const getMissions = async (req: Request, res: Response) => {
   }
 };
 
-// GET /api/missions/mine — missions posted by the logged-in user (Manage page)
+// GET /api/missions/mine — missions posted by the logged-in user
 export const getMyMissions = async (req: Request, res: Response) => {
   try {
-    const missions = await Mission.find({ postedBy: req.user!.id }).sort({ createdAt: -1 });
+    const rawMissions = await Mission.find({ postedBy: req.user!.id }).sort({ createdAt: -1 });
+    const missions = await enrichMissionsWithPosters(rawMissions);
     res.json({ missions });
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch your missions' });
   }
 };
 
-// GET /api/missions/admin/all — admin-only. Lists every mission on the
-// platform (not just the admin's own), with poster names resolved from
-// Better Auth's `user` collection since Mission.postedBy is just a raw ID.
-// This is what actually lets an admin *use* the delete/update override
-// permission they already have — without this, that permission had no UI.
+// GET /api/missions/admin/all — admin-only listing
 export const getAllMissionsForAdmin = async (req: Request, res: Response) => {
   try {
-    const missions = await Mission.find().sort({ createdAt: -1 });
-
-    const { db } = mongoose.connection;
-    const posterIds = [...new Set(missions.map((m) => m.postedBy))];
-    let posterNames = new Map<string, string>();
-
-    if (db && posterIds.length > 0) {
-      const users = await db
-        .collection('user')
-        .find({ _id: { $in: posterIds.map((id) => new mongoose.Types.ObjectId(id)) } })
-        .project({ name: 1 })
-        .toArray()
-        .catch(() => []); // postedBy IDs that aren't valid ObjectIds just fall back to "Unknown"
-
-      posterNames = new Map(users.map((u) => [String(u._id), u.name as string]));
-    }
-
-    const enriched = missions.map((m) => ({
-      ...m.toObject(),
-      posterName: posterNames.get(m.postedBy) ?? 'Unknown',
-    }));
-
+    const rawMissions = await Mission.find().sort({ createdAt: -1 });
+    const enriched = await enrichMissionsWithPosters(rawMissions);
     res.json({ missions: enriched });
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch all missions' });
@@ -142,11 +162,12 @@ export const getAllMissionsForAdmin = async (req: Request, res: Response) => {
 // GET /api/missions/:id — public mission details
 export const getMissionById = async (req: Request, res: Response) => {
   try {
-    const mission = await Mission.findById(req.params.id);
-    if (!mission) {
+    const rawMission = await Mission.findById(req.params.id);
+    if (!rawMission) {
       return res.status(404).json({ message: 'Mission not found' });
     }
-    res.json({ mission });
+    const [enriched] = await enrichMissionsWithPosters([rawMission]);
+    res.json({ mission: enriched });
   } catch (err) {
     res.status(500).json({ message: 'Failed to fetch mission' });
   }
@@ -186,6 +207,10 @@ export const createMission = async (req: Request, res: Response) => {
       return res.status(400).json({ message: 'volunteersNeeded must be a positive number' });
     }
 
+    const estimatedHours = Number(body.estimatedHours) || 4;
+    const locationStr = body.location as string;
+    const coordinates = await geocodeLocation(locationStr);
+
     const imageUrl =
       typeof body.imageUrl === 'string' && body.imageUrl.trim()
         ? body.imageUrl.trim()
@@ -197,16 +222,19 @@ export const createMission = async (req: Request, res: Response) => {
       fullDescription: body.fullDescription as string,
       disasterType: body.disasterType as 'flood' | 'earthquake' | 'fire' | 'cyclone' | 'other',
       urgency: body.urgency as 'critical' | 'moderate' | 'low',
-      location: body.location as string,
+      location: locationStr,
+      coordinates,
       volunteersNeeded,
       volunteersJoined: 0,
+      estimatedHours,
       status: 'active',
       imageUrl,
       images: [imageUrl],
       postedBy: req.user!.id,
     });
 
-    res.status(201).json({ mission });
+    const [enriched] = await enrichMissionsWithPosters([mission]);
+    res.status(201).json({ mission: enriched });
   } catch (err) {
     res.status(500).json({ message: 'Failed to create mission' });
   }
@@ -225,8 +253,7 @@ async function assertOwnerOrAdmin(req: Request, res: Response, missionId: string
   return mission;
 }
 
-// PATCH /api/missions/:id/status — toggle Active <-> Resolved. Protected,
-// owner or admin only.
+// PATCH /api/missions/:id/status — toggle Active <-> Resolved. Protected
 export const updateMissionStatus = async (req: Request, res: Response) => {
   try {
     const mission = await assertOwnerOrAdmin(req, res, String(req.params.id));
@@ -245,8 +272,7 @@ export const updateMissionStatus = async (req: Request, res: Response) => {
   }
 };
 
-// DELETE /api/missions/:id — protected, owner or admin only. Cascades to
-// that mission's volunteer signups and updates so nothing is left orphaned.
+// DELETE /api/missions/:id
 export const deleteMission = async (req: Request, res: Response) => {
   try {
     const mission = await assertOwnerOrAdmin(req, res, String(req.params.id));

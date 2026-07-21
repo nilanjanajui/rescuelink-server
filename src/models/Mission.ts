@@ -13,6 +13,13 @@ export interface IMission extends Document {
   imageUrl: string;
   images: string[];
   postedBy: string; // Better Auth user ID (string, not a Mongoose ref — different DB/collection ownership)
+  estimatedHours: number;
+  coordinates?: {
+    lat: number;
+    lng: number;
+  };
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 const missionSchema = new Schema<IMission>(
@@ -37,6 +44,11 @@ const missionSchema = new Schema<IMission>(
     imageUrl: { type: String, default: '' },
     images: [{ type: String }],
     postedBy: { type: String, required: true },
+    estimatedHours: { type: Number, default: 4 },
+    coordinates: {
+      lat: { type: Number, default: 23.8103 },
+      lng: { type: Number, default: 90.4125 },
+    },
   },
   { timestamps: true },
 );
