@@ -13,6 +13,7 @@ import testimonialRoutes from './routes/testimonial.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import adminRoutes from './routes/admin.routes';
 import uploadRoutes from './routes/upload.routes';
+import recommendationRoutes from './routes/recommendation.routes';
 
 dotenv.config();
 
@@ -34,6 +35,7 @@ app.use('/api/testimonials', testimonialRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/recommendations', recommendationRoutes);
 
 app.get('/', (req, res) => {
   res.json({ message: 'RescueLink API is running' });
