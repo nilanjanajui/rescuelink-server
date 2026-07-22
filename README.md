@@ -29,50 +29,50 @@ This is the server half of the project. See the companion [rescuelink-client](ht
 
 ```
 src/
-├── controllers/       # mission, volunteer, dashboard, stats, testimonial, contact, subscriber
-├── routes/            # matching route definitions
-├── models/            # Mission, VolunteerSignup, Update, Testimonial, ContactMessage, Subscriber
+├── controllers/       # Mission, volunteer, dashboard, stats, testimonial, contact, subscriber
+├── routes/            # Express endpoint route definitions
+├── models/            # Mongoose schemas (Mission, VolunteerSignup, Update, Testimonial, ContactMessage, Subscriber)
 ├── middleware/        # verifyJWT, requireRole, errorHandler
 ├── config/
-│   └── db.ts          # MongoDB connection
+│   └── db.ts          # MongoDB connection initializer
 ├── lib/
-│   └── auth.ts
-├── seed.ts             # seeds missions, testimonials, updates
-├── app.ts              # Express app + middleware wiring
-└── server.ts           # entry point
+│   └── auth.ts        # Better Auth server helper
+├── seed.ts            # Seeds missions, testimonials, field updates
+├── app.ts             # Express app setup & middleware wiring
+└── server.ts          # Server entry point
 ```
 
 ---
 
-## 🔌 Key Endpoints
+## 🔌 Key API Endpoints
 
-| Method | Route | Description |
-|---|---|---|
-| `GET` | `/missions` | List missions — supports `search`, `disasterType`, `urgency`, `status`, `sort`, `page`, `pageSize` |
-| `GET` | `/missions/:id` | Get a single mission's details |
-| `GET` | `/missions/mine` | Missions posted by the current user |
-| `GET` | `/missions/admin/all` | All missions (admin only) |
-| `PATCH` | `/missions/:id/status` | Toggle a mission's active/resolved status |
-| `DELETE` | `/missions/:id` | Delete a mission |
-| `GET` | `/updates?missionId=` | Updates feed for a mission |
-| `POST/GET` | `/volunteer/*` | Volunteer signups, "my signups" |
-| `GET` | `/dashboard` | Combined posted + joined missions, and platform stats for admins |
-| `GET` | `/stats` | Platform-wide statistics |
-| `POST` | `/contact` | Contact form submission |
-| `POST` | `/subscriber` | Newsletter signup |
-| `GET` | `/testimonials` | Testimonials for the homepage |
+| Method | Route | Auth | Description |
+|---|---|---|---|
+| `GET` | `/missions` | Public | List missions (supports `search`, `disasterType`, `urgency`, `status`, `sort`, `page`, `pageSize`) |
+| `GET` | `/missions/:id` | Public | Get details for a single mission |
+| `POST` | `/missions` | User / Admin | Create a new disaster relief mission |
+| `GET` | `/missions/mine` | User / Admin | Fetch missions posted by the current user |
+| `GET` | `/missions/admin/all` | Admin Only | Fetch all platform missions across all users |
+| `PATCH` | `/missions/:id/status` | User / Admin | Toggle mission active/resolved status |
+| `DELETE` | `/missions/:id` | User / Admin | Delete a mission |
+| `GET` | `/updates?missionId=` | Public | Fetch real-time field updates for a mission |
+| `POST` | `/volunteer/join` | User / Admin | Volunteer signup for a mission |
+| `GET` | `/volunteer/my-signups` | User / Admin | Retrieve all missions joined by current user |
+| `GET` | `/dashboard` | Protected | Aggregated dashboard stats (posted count, joined count, platform metrics) |
+| `GET` | `/stats` | Public | Platform-wide aggregate metrics (rescued lives, volunteer hours) |
+| `POST` | `/contact` | Public | Contact form submission handler |
+| `POST` | `/subscriber` | Public | Newsletter subscription |
+| `GET` | `/testimonials` | Public | Fetch community testimonials for landing page |
 
-> Exact paths/params may vary slightly — check `src/routes/` for the source of truth.
-
-Base URL for the live API: `https://rescuelink-server.onrender.com`
+Base URL for live API: `https://rescuelink-server.onrender.com`
 
 ---
 
 ## 🔐 Auth & Roles
 
-- Routes are protected with a `verifyJWT` middleware that validates the session token
-- `requireRole` middleware restricts admin-only routes (e.g. `/missions/admin/all`)
-- Roles: `user`, `admin`, `tenant` (browse-only)
+- Protected routes require a `verifyJWT` middleware token check.
+- `requireRole('admin')` restricts administrative routes.
+- Supported User Roles: `user`, `admin`, `tenant` (browse-only).
 
 ---
 
@@ -80,7 +80,7 @@ Base URL for the live API: `https://rescuelink-server.onrender.com`
 
 ### Prerequisites
 - Node.js 20.6+
-- MongoDB (local or Atlas)
+- MongoDB (local or Atlas cluster)
 
 ### 1. Install
 ```bash
@@ -92,23 +92,18 @@ npm install
 ### 2. Configure environment
 
 Create `.env`:
-```
+```env
 PORT=5000
 MONGO_URI=your_mongodb_connection_string
 JWT_SECRET=your_jwt_secret
 CLIENT_URL=http://localhost:3000
 ```
 
-For production/deployment (e.g. Render), set:
-```
-CLIENT_URL=https://rescuelink-client.vercel.app
-```
-
 ### 3. Seed sample data
 ```bash
 npm run seed
 ```
-Seeds missions, testimonials, and updates. Mission posters are looked up by email against the org accounts created by the client's `seed:auth` script — run that first if you want posters attached correctly.
+Seeds missions, testimonials, and field updates.
 
 ### 4. Run
 ```bash
